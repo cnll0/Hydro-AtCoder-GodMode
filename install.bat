@@ -40,6 +40,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if not defined HYDRO_NO_KEYBIND (
+    echo [1/4] Binding Alt+Enter in VS Code user keybindings ...
+    node bind-keybinding.js
+)
+
 rem ---------- 2) temp install server ----------
 set "PORT=27124"
 netstat -ano | findstr ":27124" | findstr LISTENING >nul 2>&1

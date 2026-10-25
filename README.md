@@ -28,12 +28,12 @@ Hydro-AtCoder-GodMode/
 ├── runtime-start.bat         # 极简运行时启动模板（复制到 %LOCALAPPDATA%）
 ├── start.js                  # 跨平台 Node.js 启动脚本
 ├── setup.js                  # VSCode 配置生成（支持指定目标目录）
+├── bind-keybinding.js        # 把 Alt+Enter 合并进 VS Code 用户快捷键（自动备份）
 ├── server.js                 # 本地 HTTP 服务（API + 安装页托管）
 ├── install.html              # 安装引导页（localhost 下一键装脚本）
 ├── package.json              # 项目元数据
 ├── LICENSE                   # MIT 许可证
 ├── INSTALL.md                # 快速安装与使用指南
-├── install.html              # 安装引导页（由本地服务托管，可一键装脚本）
 ├── README.md                 # 项目说明（本文件）
 ├── vscode-config/            # VSCode 任务与快捷键模板
 │   ├── tasks.json            # g++ 编译 + 一键提交任务
@@ -56,6 +56,8 @@ Hydro-AtCoder-GodMode/
 2. **双击 `start.bat`（首次运行 = 一次性安装）**  
    首次双击会自动：
    - 问你代码工作区目录，把 `.vscode` 任务写进去
+   - 把 `Alt+Enter -> submit code to OJ` 合并进 VS Code **用户级** `keybindings.json`
+     （VS Code 不读工作区的 keybindings；原文件会备份为 `keybindings.json.hydro.bak`）
    - 用临时目录启动安装服务并打开 `http://localhost:27124/install.html`
    - 你装完两个脚本按任意键后，**临时文件自动删除**
    - 可选保留一个极简运行时（`%LOCALAPPDATA%\HydroGodMode`，仅 3 个文件）
@@ -82,6 +84,7 @@ Hydro-AtCoder-GodMode/
 |---|---|---|
 | `server.js` / `start.bat` / `setup.js` / `vscode-config/` | ❌ 建议保留 | 日常服务与重装所需 |
 | `install.html` / `tampermonkey/` | ✅ 可删 | 只在安装脚本时需要；运行时里已不依赖 |
+| `bind-keybinding.js` / `vscode-config/keybindings.json` | ✅ 可删 | 快捷键已写进 VS Code 用户配置，仅重装时需要 |
 | `README.md` / `INSTALL.md` / `LICENSE` / `install.bat` / `uninstall.bat` | ✅ 可删 | 文档与安装器 |
 | 工作区里的 `.vscode/` | ✅ 可删 | 只影响 Alt+Enter 任务，删了就手动提交 |
 
