@@ -4,7 +4,7 @@ const path = require('path');
 const { exec } = require('child_process');
 
 const WATCH_DIR = __dirname; 
-const PORT = 27122;
+const PORT = Number(process.env.PORT) || 27122;
 
 let browserCookie = '';
 let currentProblemUrl = '';
@@ -25,10 +25,54 @@ function getLatestCpp() {
     } catch (e) { return null; }
 }
 
+const MIME = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'application/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.md': 'text/markdown; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.png': 'image/png',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon'
+};
+
+// 托管安装页与用户脚本：篡改猴只能通过 http(s) 的 .user.js 链接弹出安装框，
+// file:// 直接打开只会显示源码，所以必须由本地服务提供这些文件。
+function serveStatic(req, res) {
+    let urlPath;
+    try { urlPath = decodeURIComponent(req.url.split('?')[0]); } catch (e) { return false; }
+
+    if (urlPath === '/' || urlPath === '/install' || urlPath === '/install/') {
+        res.writeHead(302, { Location: '/install.html' });
+        res.end();
+        return true;
+    }
+
+    if (!/^\/(install\.html|README\.md|INSTALL\.md|tampermonkey\/[\w.\-]+)$/.test(urlPath)) return false;
+
+    const filePath = path.normalize(path.join(WATCH_DIR, urlPath));
+    if (filePath !== WATCH_DIR && !filePath.startsWith(WATCH_DIR + path.sep)) return false;
+
+    fs.stat(filePath, (err, stat) => {
+        if (err || !stat.isFile()) { res.writeHead(404); res.end('Not found'); return; }
+        const ext = path.extname(filePath).toLowerCase();
+        res.writeHead(200, {
+            'Content-Type': MIME[ext] || 'application/octet-stream',
+            // 关键：.user.js 用 application/javascript 返回，篡改猴会拦截并弹出安装确认
+            'Cache-Control': 'no-store'
+        });
+        if (req.method === 'HEAD') { res.end(); return; }
+        fs.createReadStream(filePath).pipe(res);
+    });
+    return true;
+}
+
 const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+    if ((req.method === 'GET' || req.method === 'HEAD') && serveStatic(req, res)) return;
 
     if (req.method === 'POST' && req.url === '/api/sync') {
         let body = '';

@@ -29,6 +29,7 @@ Hydro-AtCoder-GodMode/
 ├── package.json              # 项目元数据
 ├── LICENSE                   # MIT 许可证
 ├── INSTALL.md                # 快速安装与使用指南
+├── install.html              # 安装引导页（由本地服务托管，可一键装脚本）
 ├── README.md                 # 项目说明（本文件）
 ├── vscode-config/            # VSCode 任务与快捷键模板
 │   ├── tasks.json            # g++ 编译 + 一键提交任务
@@ -49,12 +50,16 @@ Hydro-AtCoder-GodMode/
    ```
 
 2. **双击运行 `start.bat`**  
-   脚本会自动检查 Node.js、生成 VSCode 配置、启动本地服务。
+   脚本会自动检查 Node.js、生成 VSCode 配置、启动本地服务，并自动打开安装引导页
+   `http://localhost:27122/install.html`。
 
-3. **安装浏览器脚本**  
-   将 `tampermonkey/` 下的两个 `.user.js` 文件拖入浏览器的 Tampermonkey 扩展中安装：
+3. **在安装引导页里装脚本**  
+   打开 `http://localhost:27122/install.html`（必须走 localhost，`file://` 直接打开无法安装），
+   点击页面上的两个脚本链接，篡改猴会弹出安装框：
    - `KedaOI-Hydro-Helper.user.js` —— 可达信奥
    - `AtCoder-Plus-CPH.user.js` —— AtCoder
+
+   Tampermonkey 扩展本体可从 [Edge 商店](https://microsoftedge.microsoft.com/addons/detail/%E7%AF%A1%E6%94%B9%E7%8C%B4/iikmkjmpaadaobahmlepeloendndfphd) 直接安装。
 
 4. **打开 VSCode 工作区**  
    在 VSCode 中打开当前文件夹作为工作区。

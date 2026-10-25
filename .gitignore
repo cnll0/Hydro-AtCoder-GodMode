@@ -1,0 +1,13 @@
+# 运行 setup.js 生成的本机配置
+.vscode/
+
+# 运行时生成的文件
+Problem.md
+*.exe
+*.out
+
+# 依赖与日志
+node_modules/
+npm-debug.log*
+.DS_Store
+Thumbs.db
