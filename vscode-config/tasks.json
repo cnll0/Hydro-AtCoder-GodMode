@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "process",
+      "label": "g++",
+      "command": "g++.exe",
+      "args": ["-g", "-O0", "-std=c++17", "${fileBasename}", "-o", "${fileBasenameNoExtension}.exe"],
+      "options": { "cwd": "${fileDirname}" },
+      "problemMatcher": ["$gcc"],
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "submit code to OJ",
+      "type": "shell",
+      "command": "curl",
+      "args": ["-s", "-X", "POST", "http://localhost:27122/api/submit"],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true },
+      "problemMatcher": []
+    }
+  ]
+}
