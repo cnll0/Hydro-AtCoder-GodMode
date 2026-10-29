@@ -77,13 +77,47 @@ async function chooseWorkspace() {
     return typed ? typed.replace(/^"|"$/g, '').trim() : '';
 }
 
+function tasksJson(ws) {
+    const appJs = path.join(runtimeDir(), 'app.js').replace(/\\/g, '/');
+    const tasks = [
+        {
+            type: 'process', label: 'g++', command: 'g++.exe',
+            args: ['-g', '-O0', '-std=c++17', '${fileBasename}', '-o', '${fileBasenameNoExtension}.exe'],
+            options: { cwd: '${fileDirname}' },
+            problemMatcher: ['$gcc'],
+            group: { kind: 'build', isDefault: true }
+        },
+        {
+            label: 'submit code to OJ', type: 'shell', command: 'curl',
+            args: ['-s', '-X', 'POST', 'http://localhost:27122/api/submit'],
+            presentation: { reveal: 'always', panel: 'shared', clear: true },
+            problemMatcher: []
+        },
+        {
+            label: 'start server', type: 'shell', command: 'node',
+            args: [appJs, '--serve'],
+            isBackground: true,
+            runOptions: { runOn: 'folderOpen' },
+            problemMatcher: [],
+            presentation: { reveal: 'silent', panel: 'dedicated' }
+        },
+        {
+            label: 'open problem', type: 'shell', command: 'code',
+            args: ['-r', path.join(ws || '.', 'Problem.md').replace(/\\/g, '/')],
+            presentation: { reveal: 'never' },
+            problemMatcher: []
+        }
+    ];
+    return JSON.stringify({ version: '2.0.0', tasks }, null, 4) + '\n';
+}
+
 function setupWorkspace(ws) {
     const dir = path.join(ws, '.vscode');
     fs.mkdirSync(dir, { recursive: true });
     for (const f of Object.keys(VSCODE_FILES)) {
         const dst = path.join(dir, f);
         if (fs.existsSync(dst)) { log('[vscode] 保留已有 ' + f); continue; }
-        fs.writeFileSync(dst, VSCODE_FILES[f], 'utf8');
+        fs.writeFileSync(dst, f === 'tasks.json' ? tasksJson(ws) : VSCODE_FILES[f], 'utf8');
         log('[vscode] 已写入 ' + dst);
     }
 }
