@@ -1,7 +1,0 @@
-[
-  {
-    "key": "alt+enter",
-    "command": "workbench.action.tasks.runTask",
-    "args": "submit code to OJ"
-  }
-]
