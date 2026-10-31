@@ -18,14 +18,14 @@
 | 角色 | 路径 |
 | --- | --- |
 | **仓库/发布物**（git，推 GitHub） | `D:\Desktop\word_or_image\code\good_jb\Hydro-AtCoder-GodMode` |
-| **源码/构建目录**（不进 git） | `D:\Desktop\word_or_image\xian_2D\_merge` |
+| **源码/构建目录**（不进 git） | `D:\Desktop\word_or_image\code\good_jb\Hydro-AtCoder-GodMode-src` |
 
 仓库 remote：`https://github.com/cnll0/Hydro-AtCoder-GodMode.git`（branch `main`，凭证由 `credential.helper=manager` 缓存，push 不用填 token）。
 
 仓库里**只有 4 个文件**（刻意的，别再往仓库塞 README/截图/配置）：
 
 ```
-app.js        92064 B  ← 由 _merge 构建生成，不要手改
+app.js        92807 B  ← 由 Hydro-AtCoder-GodMode-src 构建生成，不要手改
 install.bat   181 B    ← 安装器入口
 start.bat     190 B    ← 启动服务入口
 HANDOVER.md   这份交接文档（唯一允许的文档）
@@ -65,10 +65,10 @@ HANDOVER.md   这份交接文档（唯一允许的文档）
 ## 5. 改代码的标准流程（⚠️ 别直接改仓库的 app.js）
 
 ```powershell
-cd D:\Desktop\word_or_image\xian_2D\_merge
+cd D:\Desktop\word_or_image\code\good_jb\Hydro-AtCoder-GodMode-src
 # 1) 改源码：installer.js / server.js / install.html / tampermonkey\*.user.js / hydro-console.js / build.js
-node build.js                 # 生成 _merge\app.js
-node --check _merge\app.js    # 语法自检
+node build.js                 # 生成 Hydro-AtCoder-GodMode-src\app.js
+node --check Hydro-AtCoder-GodMode-src\app.js    # 语法自检
 powershell -NoProfile -ExecutionPolicy Bypass -File deploy.ps1
 # deploy.ps1 会：复制 app.js 到仓库 → 重写 install.bat/start.bat(CRLF,UTF-8 无 BOM) → 清理旧文件 → node --check → 列目录
 cd D:\Desktop\word_or_image\code\good_jb\Hydro-AtCoder-GodMode
@@ -77,7 +77,7 @@ git push
 git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 ```
 
-`build.js` 干的事（139 行）：读 `_merge` 下源码 → 切出 installer 主体（从注释 `// Hydro-AtCoder-GodMode 唯一安装器` 到 `main().catch(e =>`）→ 处理 `PICKER_PS` 常量 → 把 `setupWorkspace` 里的 `fs.copyFileSync(...)` 改写成 `fs.writeFileSync(dst, f === 'tasks.json' ? tasksJson(ws) : VSCODE_FILES[f], 'utf8')` → 切出 `server.js` 的服务主体、把 `WATCH_DIR = __dirname` 换成 `workspaceDir()`、用内嵌 `serveAsset` 替换静态文件服务 → 生成 `ASSETS`/`VSCODE_FILES` 常量 → 加 tail（`workspaceDir`、`startServer`、`--serve` 分发）→ 写 `_merge/app.js`。
+`build.js` 干的事（139 行）：读 `Hydro-AtCoder-GodMode-src` 下源码 → 切出 installer 主体（从注释 `// Hydro-AtCoder-GodMode 唯一安装器` 到 `main().catch(e =>`）→ 处理 `PICKER_PS` 常量 → 把 `setupWorkspace` 里的 `fs.copyFileSync(...)` 改写成 `fs.writeFileSync(dst, f === 'tasks.json' ? tasksJson(ws) : VSCODE_FILES[f], 'utf8')` → 切出 `server.js` 的服务主体、把 `WATCH_DIR = __dirname` 换成 `workspaceDir()`、用内嵌 `serveAsset` 替换静态文件服务 → 生成 `ASSETS`/`VSCODE_FILES` 常量 → 加 tail（`workspaceDir`、`startServer`、`--serve` 分发）→ 写 `Hydro-AtCoder-GodMode-src/app.js`。
 
 源码文件清单：`installer.js`(329) `server.js`(326) `install.html`(18884 B) `hydro-console.js`(2922 B) `tm-test.user.js`(963 B) `tampermonkey/Hydro-Helper.user.js`(531 行/24327 B) `tampermonkey/AtCoder-Plus-CPH.user.js`(4689 B) `vscode-config/{tasks,keybindings}.json` `build.js`(139) `deploy.ps1`。
 
@@ -142,7 +142,7 @@ git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 
 ```powershell
 # 编译/部署/推送
-cd D:\Desktop\word_or_image\xian_2D\_merge; node build.js; powershell -NoProfile -ExecutionPolicy Bypass -File deploy.ps1
+cd D:\Desktop\word_or_image\code\good_jb\Hydro-AtCoder-GodMode-src; node build.js; powershell -NoProfile -ExecutionPolicy Bypass -File deploy.ps1
 cd D:\Desktop\word_or_image\code\good_bj   # ← 正确路径见上，注意 good_jb
 
 # 起服务（后台，日志重定向）
@@ -157,6 +157,6 @@ Get-NetTCPConnection -LocalPort 27122 -State Listen | % OwningProcess | % { Stop
 
 ## 11. 给接手 AI 的三句话
 
-1. **改代码只改 `_merge`，然后 `build.js` + `deploy.ps1` + 提交推送**；仓库的 `app.js` 是产物。
+1. **改代码只改 `Hydro-AtCoder-GodMode-src`，然后 `build.js` + `deploy.ps1` + 提交推送**；仓库的 `app.js` 是产物。
 2. **页面没反应先看控制台有没有 `[Hydro助手] 页面识别`**：没有 = userscript 没注入（先查篡改猴「允许运行用户脚本」开关），有 = 才轮到识别逻辑。
 3. 提交信息用 ASCII，push 后一定 `git rev-parse HEAD` 与 `origin/main` 对齐确认。
