@@ -469,7 +469,8 @@ function startServer() {
         return String(title || '').replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60);
     }
     
-    // 路径：Problems/<站点>/<题号>-<标题>.md；拿不到题号时退回 Problem.md（兼容旧行为）
+    // 路径：Problems/<站点>/<标题>.md —— 文件名用题目标题，不带题号；
+    // 标题取不到时退回题号，再取不到才用旧的 Problem.md（兼容旧行为）
     function problemMarkdownPath(ctx) {
         try {
             const url = (ctx && ctx.url) || '';
@@ -477,8 +478,7 @@ function startServer() {
             if (!pid) return path.join(WATCH_DIR, 'Problem.md');
             const host = safeName(new URL(url).host, 'site');
             const slug = slugOf((ctx && ctx.title) || '');
-            const pidSafe = safeName(pid, 'problem');
-            const name = pidSafe + (slug && slug !== pidSafe ? '-' + slug : '') + '.md';
+            const name = (slug || safeName(pid, 'problem')) + '.md';
             return path.join(WATCH_DIR, 'Problems', host, name);
         } catch (e) {
             return path.join(WATCH_DIR, 'Problem.md');

@@ -9,7 +9,7 @@
 
 三个组件：
 
-- **本地服务**（Node，`http://localhost:27122`）：接收浏览器发来的题面/样例/Cookie，管理「当前题目上下文」，代你 POST 到 OJ 并轮询判题结果。题面按题落盘到工作区 `Problems/<站点>/<题号>-<标题>.md`（不同题互不覆盖，同题重复抓取只覆盖自己），提交前先用本地 `g++ -fsyntax-only` 预检，预检不过直接判 CE、不发网络请求。
+- **本地服务**（Node，`http://localhost:27122`）：接收浏览器发来的题面/样例/Cookie，管理「当前题目上下文」，代你 POST 到 OJ 并轮询判题结果。题面按题落盘到工作区 `Problems/<站点>/<标题>.md`（文件名只用题目标题、不带题号；不同题互不覆盖，同题重复抓取只覆盖自己），提交前先用本地 `g++ -fsyntax-only` 预检，预检不过直接判 CE、不发网络请求。
 - **浏览器脚本**（篡改猴 userscript，`Hydro 通用全能助手` v8.5）：识别 Hydro 题页，右下角浮出「发送到 CPH」按钮，把题面转 Markdown、样例抓下来、连同 Cookie/语言发到本地服务。同时装 AtCoder 版脚本 `AtCoder-Plus-CPH.user.js`。
 - **VS Code 任务/键位**：`Alt+Enter` = `submit code to OJ`，它是一条 `dependsOn` **复合任务**——先 `preview submit target`（`curl GET /api/preview`，`--max-time 3`，服务没起会立刻暴露），再 `submit code to OJ (post)`（`curl POST /api/submit`，`--max-time 60`）。另有 `start server`（`runOn: folderOpen`，开文件夹自动起服务）、`open problem`（`code -r` 打开题面）、`g++` 编译。
 
@@ -61,7 +61,7 @@ HANDOVER.md   这份交接文档（唯一允许的文档）
 | 335 | `installerMain()` |
 | 388 | `workspaceDir()` |
 | 397 | `startServer()`（`MAX_POLLS = 25`，绑 `127.0.0.1`，`contexts = new Map()` 按 URL 存上下文，TTL 30 min；`server.on('error')` 处理端口占用） |
-| 473 | `problemMarkdownPath(ctx)`：`Problems/<host>/<pid>-<slug>.md`，拿不到题号退回 `Problem.md` |
+| 473 | `problemMarkdownPath(ctx)`：`Problems/<host>/<标题>.md`（标题清洗非法字符；取不到标题退回题号 `<pid>.md`；连题号都没有才用旧 `Problem.md`） |
 | 489 | `openInVSCode(paths)`：`spawn` 逐参数传参（Windows 走 `cmd /c "code" "a.cpp" "b.md"`），不再把文件名拼进一条 shell 命令 |
 | 526 | `localSyntaxCheck(file)`：`g++ -std=c++17 -fsyntax-only`，stderr 写临时文件（不建管道） |
 | 588 | `/api/sync` 处理（`handleSync`；题面写入按各自 mdPath 做 400ms debounce + 内容去重，多标签不互相打断） |
@@ -91,7 +91,7 @@ git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/api/sync` | 浏览器脚本上报：cookie、url、markdown（题面）、samples、lang/langlist、csrf。题面写入 `Problems/<站点>/<题号>-<标题>.md`（无题号时退回 `Problem.md`） |
+| POST | `/api/sync` | 浏览器脚本上报：cookie、url、markdown（题面）、samples、lang/langlist、csrf。题面写入 `Problems/<站点>/<标题>.md`（无标题时退回 `<题号>.md`，完全无题号才用 `Problem.md`） |
 | POST | `/api/submit` | 提交当前上下文到 OJ 并轮询判题（`MAX_POLLS=25`，约 25 秒）；返回中文状态，首行固定 `📄 文件: xxx.cpp（与题号匹配/最新修改） | lang: …`；`cc.*` 语言先跑本地语法预检 |
 | GET | `/api/preview` | 返回 `{ok,url,title,pid,file,fileName,matchedByProblem,lang,mdPath}`；只看不提交，无上下文时 `ok:false`（仍 200） |
 | POST | `/api/ping` | userscript 心跳（body: url/title/host/version） |
@@ -139,7 +139,7 @@ git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 - **`tools.edit` 要求目标文件本会话内被 `tools.read` 读过**，否则报 `file has not been read`。
 - **受限环境里 `spawnSync` 不能建管道**（沙箱收紧时直接 `EPERM`）→ 探测编译器用 `stdio:'ignore'`，g++ 的报错写临时文件再 `fs.readFileSync` 读，别指望 `encoding:'utf8'` 的管道捕获。
 - **老工作区拿不到新任务**：以前 `setupWorkspace` 见到 `tasks.json` 就跳过，现在按 label 合并；还不行就删掉 `.vscode/tasks.json` 重跑安装器。
-- **`Problem.md` 只是旧版单文件兜底**：拿不到题号才写它，找题面去 `Problems/<host>/` 按题号看。
+- **`Problem.md` 只是旧版单文件兜底**：拿不到题号才写它；找题面去 `Problems/<host>/` 按标题看（无标题的用题号命名）。
 
 ## 8. 已完成的决策记录（为什么是现在这样）
 
@@ -158,7 +158,7 @@ git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 4. 篡改猴用户可以靠 `@updateURL`（指向 `localhost:27122`）自动更新脚本，但**服务没起时不会更新**；也可以从安装页手动重装。
 5. 控制台方式每次刷新要重新粘贴（可用书签小工具缓解，未做）。
 6. 只做了 Windows（依赖 `powershell.exe`、`%LOCALAPPDATA%`、`.bat`）。
-7. `Problems/` 只增不清理：每题一个 `.md`，同题只覆盖自己，不会自动删旧题。
+7. `Problems/` 只增不清理：每题一个 `<标题>.md`，同题只覆盖自己，不会自动删旧题；**同站两题同名会撞名**（后写的覆盖前一份），需要区分时手动改名即可。
 
 ## 10. 常用命令速查
 
