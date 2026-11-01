@@ -479,8 +479,10 @@ function startServer() {
         return String(title || '')
             .replace(/[\\/:*?"<>|]/g, '')
             .replace(/[\u0000-\u001f]+/g, ' ')
+            .replace(/\s+/g, ' ')            // 换行/连续空格压成一个空格，避免出现 "旅游  travel" 这种双空格名
             .replace(/[.\s]+$/, '')
             .replace(/^[.\s]+/, '')
+            .replace(/\s+\./g, '.')
             .slice(0, 80);
     }
     
