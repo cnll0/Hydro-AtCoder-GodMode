@@ -1,7 +1,7 @@
 # 交接文档 · Hydro-AtCoder-GodMode
 
 > 面向下一个接手的人（或下一个会话的 AI）。读完这份就能改代码、能排障。
-> 上一轮交接对应提交 `3efc530`（v8.5）。本轮（题面按题落盘、提交前本地预检、`/api/preview`、端口占用提示）之后，仓库 `app.js` 是 103352 B / 875 行，提交号见 `git log -1`。
+> 上一轮交接对应提交 `3efc530`（v8.5）。此后几轮（题面按题落盘、提交前本地预检、`/api/preview`、端口占用提示、题面文件名原样化、工作区回落到已安装设置、去掉心跳上报）之后，仓库 `app.js` 是 100095 B / 854 行，提交号见 `git log -1`。
 
 ## 1. 它是什么
 
@@ -10,7 +10,7 @@
 三个组件：
 
 - **本地服务**（Node，`http://localhost:27122`）：接收浏览器发来的题面/样例/Cookie，管理「当前题目上下文」，代你 POST 到 OJ 并轮询判题结果。题面按题落盘到工作区 `Problems/<站点>/<标题>.md`（文件名只用题目标题、不带题号，标题里的非法字符直接删掉而不替换；不同题互不覆盖，同题重复抓取只覆盖自己），提交前先用本地 `g++ -fsyntax-only` 预检，预检不过直接判 CE、不发网络请求。
-- **浏览器脚本**（篡改猴 userscript，`Hydro 通用全能助手` v8.5）：识别 Hydro 题页，右下角浮出「发送到 CPH」按钮，把题面转 Markdown、样例抓下来、连同 Cookie/语言发到本地服务。同时装 AtCoder 版脚本 `AtCoder-Plus-CPH.user.js`。
+- **浏览器脚本**（篡改猴 userscript，`Hydro 通用全能助手` v8.6，不再发任何心跳/浏览记录上报）：识别 Hydro 题页，右下角浮出「发送到 CPH」按钮，把题面转 Markdown、样例抓下来、连同 Cookie/语言发到本地服务。同时装 AtCoder 版脚本 `AtCoder-Plus-CPH.user.js`。
 - **VS Code 任务/键位**：`Alt+Enter` = `submit code to OJ`，它是一条 `dependsOn` **复合任务**——先 `preview submit target`（`curl GET /api/preview`，`--max-time 3`，服务没起会立刻暴露），再 `submit code to OJ (post)`（`curl POST /api/submit`，`--max-time 60`）。另有 `start server`（`runOn: folderOpen`，开文件夹自动起服务）、`open problem`（`code -r` 打开题面）、`g++` 编译。
 
 ## 2. 两个目录（重要：不要搞反）
@@ -85,7 +85,7 @@ git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 
 `build.js` 干的事（139 行）：读 `Hydro-AtCoder-GodMode-src` 下源码 → 切出 installer 主体（从注释 `// Hydro-AtCoder-GodMode 唯一安装器` 到 `main().catch(e =>`）→ 处理 `PICKER_PS` 常量 → 把 `setupWorkspace` 里的 `fs.copyFileSync(...)` 改写成 `fs.writeFileSync(dst, f === 'tasks.json' ? tasksJson(ws) : VSCODE_FILES[f], 'utf8')` → 切出 `server.js` 的服务主体、把 `WATCH_DIR = __dirname` 换成 `workspaceDir()`、用内嵌 `serveAsset` 替换静态文件服务（**不再改写 `exec('code -r' …)`**：server.js 已改用 `spawn` 逐参数传参，build.js 里那条替换已删掉）→ 生成 `ASSETS`/`VSCODE_FILES` 常量 → 加 tail（`workspaceDir`、`startServer`、`--serve` 分发）→ 写 `Hydro-AtCoder-GodMode-src/app.js`。
 
-源码文件清单：`installer.js`(363) `server.js`(492) `install.html`(18884 B) `hydro-console.js`(2922 B) `tm-test.user.js`(963 B) `tampermonkey/Hydro-Helper.user.js`(531 行/24327 B) `tampermonkey/AtCoder-Plus-CPH.user.js`(4689 B) `vscode-config/{tasks,keybindings}.json` `build.js`(139) `deploy.ps1`。
+源码文件清单：`installer.js`(363) `server.js`(468) `install.html`(16740 B) `hydro-console.js`(2922 B) `tm-test.user.js`(610 B) `tampermonkey/Hydro-Helper.user.js`(506 行/24005 B) `tampermonkey/AtCoder-Plus-CPH.user.js`(4689 B) `vscode-config/{tasks,keybindings}.json` `build.js`(139) `deploy.ps1`。
 
 ## 6. HTTP API
 
@@ -94,9 +94,7 @@ git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 | POST | `/api/sync` | 浏览器脚本上报：cookie、url、markdown（题面）、samples、lang/langlist、csrf。题面写入 `Problems/<站点>/<标题>.md`（无标题时退回 `<题号>.md`，完全无题号才用 `Problem.md`） |
 | POST | `/api/submit` | 提交当前上下文到 OJ 并轮询判题（`MAX_POLLS=25`，约 25 秒）；返回中文状态，首行固定 `📄 文件: xxx.cpp（与题号匹配/最新修改） | lang: …`；`cc.*` 语言先跑本地语法预检 |
 | GET | `/api/preview` | 返回 `{ok,url,title,pid,file,fileName,matchedByProblem,lang,mdPath}`；只看不提交，无上下文时 `ok:false`（仍 200） |
-| POST | `/api/ping` | userscript 心跳（body: url/title/host/version） |
-| GET | `/api/ping` | 返回 `{ok, now, ping}`，安装页 3 秒轮询一次显示「脚本到底跑没跑」 |
-| GET | `/install.html` | 安装引导页（方式 A 一键安装 / 方式 B 复制粘贴 / 方式 C 控制台保底 / 心跳面板） |
+| GET | `/install.html` | 安装引导页（方式 A 一键安装 / 方式 B 复制粘贴 / 方式 C 控制台保底） |
 | GET | `/tampermonkey/*.user.js` | 下发 userscript（`?download=1` 强制下载） |
 | GET | `/hydro-console.js` | 控制台版加载器（不需要篡改猴） |
 
@@ -123,7 +121,7 @@ git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 1. 控制台看有没有 `[Hydro助手] 页面识别 {...}` 这行日志——**没有就说明函数体没执行，别再去调识别逻辑**（本次用户坚持「正则不匹配」，白绕了十几轮）。
 2. 扩展详情页把「允许运行用户脚本 / Allow user scripts」打开，重新加载扩展，Ctrl+F5。
 3. 篡改猴 4.x 在 MV3 下会静默不注入，升到 5.x。
-4. 装 `tm-test.user.js`（3 行自检，安装页黄色提示块里有链接）：注入成功会 alert + 发心跳 `version:selftest`。
+4. 装 `tm-test.user.js`（3 行自检，安装页黄色提示块里有链接）：注入成功会 alert（不再发任何网络请求）。
 
 ### 7.2 其它已知坑
 
@@ -171,7 +169,7 @@ cd D:\Desktop\word_or_image\code\good_bj   # ← 正确路径见上，注意 goo
 Start-Process node 'D:\Desktop\word_or_image\code\good_jb\Hydro-AtCoder-GodMode\app.js' --serve
 # 验证
 Invoke-WebRequest http://localhost:27122/install.html -UseBasicParsing | % RawContentLength
-Invoke-WebRequest http://localhost:27122/api/ping -UseBasicParsing | % Content
+Invoke-WebRequest http://localhost:27122/api/preview -UseBasicParsing | % Content
 
 # 找端口占用
 Get-NetTCPConnection -LocalPort 27122 -State Listen | % OwningProcess | % { Stop-Process -Id $_ -Force }
