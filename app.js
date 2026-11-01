@@ -24,7 +24,7 @@ const ASSETS = {
 };
 
 const VSCODE_FILES = {
-    'tasks.json': "{\n  \"version\": \"2.0.0\",\n  \"tasks\": [\n    {\n      \"type\": \"process\",\n      \"label\": \"g++\",\n      \"command\": \"g++.exe\",\n      \"args\": [\"-g\", \"-O0\", \"-std=c++17\", \"${fileBasename}\", \"-o\", \"${fileBasenameNoExtension}.exe\"],\n      \"options\": { \"cwd\": \"${fileDirname}\" },\n      \"problemMatcher\": [\"$gcc\"],\n      \"group\": { \"kind\": \"build\", \"isDefault\": true }\n    },\n    {\n      \"label\": \"submit code to OJ\",\n      \"type\": \"shell\",\n      \"command\": \"curl\",\n      \"args\": [\"-s\", \"-X\", \"POST\", \"http://localhost:27122/api/submit\"],\n      \"presentation\": { \"reveal\": \"always\", \"panel\": \"shared\", \"clear\": true },\n      \"problemMatcher\": []\n    }\n  ]\n}",
+    'tasks.json': "{\n  \"version\": \"2.0.0\",\n  \"tasks\": [\n    {\n      \"type\": \"process\",\n      \"label\": \"g++\",\n      \"command\": \"g++.exe\",\n      \"args\": [\n        \"-g\",\n        \"-O0\",\n        \"-std=c++17\",\n        \"${fileBasename}\",\n        \"-o\",\n        \"${fileBasenameNoExtension}.exe\"\n      ],\n      \"options\": {\n        \"cwd\": \"${fileDirname}\"\n      },\n      \"problemMatcher\": [\n        \"$gcc\"\n      ],\n      \"group\": {\n        \"kind\": \"build\",\n        \"isDefault\": true\n      }\n    },\n    {\n      \"label\": \"preview submit target\",\n      \"type\": \"shell\",\n      \"command\": \"curl\",\n      \"args\": [\n        \"-s\",\n        \"--max-time\",\n        \"3\",\n        \"http://localhost:27122/api/preview\"\n      ],\n      \"presentation\": {\n        \"reveal\": \"always\",\n        \"panel\": \"shared\",\n        \"clear\": true\n      },\n      \"problemMatcher\": []\n    },\n    {\n      \"label\": \"submit code to OJ (post)\",\n      \"type\": \"shell\",\n      \"command\": \"curl\",\n      \"args\": [\n        \"-s\",\n        \"--max-time\",\n        \"60\",\n        \"-X\",\n        \"POST\",\n        \"http://localhost:27122/api/submit\"\n      ],\n      \"presentation\": {\n        \"reveal\": \"always\",\n        \"panel\": \"shared\",\n        \"clear\": false\n      },\n      \"problemMatcher\": []\n    },\n    {\n      \"label\": \"submit code to OJ\",\n      \"dependsOn\": [\n        \"preview submit target\",\n        \"submit code to OJ (post)\"\n      ],\n      \"dependsOrder\": \"sequence\",\n      \"presentation\": {\n        \"reveal\": \"always\",\n        \"panel\": \"shared\"\n      },\n      \"problemMatcher\": []\n    }\n  ]\n}\n",
     'keybindings.json': "[\n  {\n    \"key\": \"alt+enter\",\n    \"command\": \"workbench.action.tasks.runTask\",\n    \"args\": \"submit code to OJ\"\n  }\n]"
 };
 
@@ -96,9 +96,22 @@ function tasksJson(ws) {
             group: { kind: 'build', isDefault: true }
         },
         {
-            label: 'submit code to OJ', type: 'shell', command: 'curl',
-            args: ['-s', '-X', 'POST', 'http://localhost:27122/api/submit'],
+            label: 'preview submit target', type: 'shell', command: 'curl',
+            args: ['-s', '--max-time', '3', 'http://localhost:27122/api/preview'],
             presentation: { reveal: 'always', panel: 'shared', clear: true },
+            problemMatcher: []
+        },
+        {
+            label: 'submit code to OJ (post)', type: 'shell', command: 'curl',
+            args: ['-s', '--max-time', '60', '-X', 'POST', 'http://localhost:27122/api/submit'],
+            presentation: { reveal: 'always', panel: 'shared', clear: false },
+            problemMatcher: []
+        },
+        {
+            label: 'submit code to OJ',
+            dependsOn: ['preview submit target', 'submit code to OJ (post)'],
+            dependsOrder: 'sequence',
+            presentation: { reveal: 'always', panel: 'shared' },
             problemMatcher: []
         },
         {
@@ -119,12 +132,33 @@ function tasksJson(ws) {
     return JSON.stringify({ version: '2.0.0', tasks }, null, 4) + '\n';
 }
 
+// 老用户已经有 .vscode/tasks.json：把新增的任务并进去，不覆盖他自己改过的内容
+function mergeTasks(dst, wantJson) {
+    try {
+        const cur = JSON.parse(fs.readFileSync(dst, 'utf8'));
+        const want = JSON.parse(wantJson);
+        cur.version = cur.version || want.version;
+        cur.tasks = Array.isArray(cur.tasks) ? cur.tasks : [];
+        const have = new Set(cur.tasks.map(t => t && t.label));
+        const add = (want.tasks || []).filter(t => t && t.label && !have.has(t.label));
+        if (!add.length) { log('[vscode] tasks.json 已是最新'); return; }
+        cur.tasks = add.concat(cur.tasks);
+        fs.writeFileSync(dst, JSON.stringify(cur, null, 4) + '\n', 'utf8');
+        log('[vscode] 已向 tasks.json 补充任务：' + add.map(t => t.label).join('、'));
+    } catch (e) {
+        log('[vscode] tasks.json 读取失败，保持原样：' + e.message);
+    }
+}
+
 function setupWorkspace(ws) {
     const dir = path.join(ws, '.vscode');
     fs.mkdirSync(dir, { recursive: true });
     for (const f of Object.keys(VSCODE_FILES)) {
         const dst = path.join(dir, f);
-        if (fs.existsSync(dst)) { log('[vscode] 保留已有 ' + f); continue; }
+        if (fs.existsSync(dst)) {
+            if (f === 'tasks.json') { mergeTasks(dst, tasksJson(ws)); continue; }
+            log('[vscode] 保留已有 ' + f); continue;
+        }
         fs.writeFileSync(dst, f === 'tasks.json' ? tasksJson(ws) : VSCODE_FILES[f], 'utf8');
         log('[vscode] 已写入 ' + dst);
     }
@@ -372,8 +406,9 @@ function startServer() {
     // 每个题目页最近一次同步的上下文。<url, {at,cookie,lang,langs,csrf,title}>
     // 用 Map 而不是单个全局变量，避免开了多个题目标签页时提交到错误的那一题。
     const contexts = new Map();
-    let lastMarkdown = '';
-    let syncTimer = null;
+    const mdTimers = new Map();          // 每个题面文件各自 debounce，开多个题目标签也不会互相覆盖
+    const mdWritten = new Map();         // 已经写过的内容，重复同步不再重写、也不再重新打开编辑器
+    const CODE_CMD = process.env.HYDRO_CODE_CMD || 'code';
     
     function pruneContexts() {
         const now = Date.now();
@@ -422,6 +457,99 @@ function startServer() {
             const chosen = hit || list[0];
             return { path: chosen.path, code: fs.readFileSync(chosen.path, 'utf-8'), matchedByProblem: !!hit };
         } catch (e) { return null; }
+    }
+    
+    // --- 题面文件路径：每题一个 .md，不同题的题面互不覆盖 ---
+    function safeName(s, fallback) {
+        const v = String(s || '').replace(/[^\w.\-]/g, '_').replace(/^[.\-]+/, '').replace(/[.\-]+$/, '').slice(0, 80);
+        return v || (fallback || 'unknown');
+    }
+    
+    function slugOf(title) {
+        return String(title || '').replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60);
+    }
+    
+    // 路径：Problems/<站点>/<题号>-<标题>.md；拿不到题号时退回 Problem.md（兼容旧行为）
+    function problemMarkdownPath(ctx) {
+        try {
+            const url = (ctx && ctx.url) || '';
+            const pid = problemId(url);
+            if (!pid) return path.join(WATCH_DIR, 'Problem.md');
+            const host = safeName(new URL(url).host, 'site');
+            const slug = slugOf((ctx && ctx.title) || '');
+            const pidSafe = safeName(pid, 'problem');
+            const name = pidSafe + (slug && slug !== pidSafe ? '-' + slug : '') + '.md';
+            return path.join(WATCH_DIR, 'Problems', host, name);
+        } catch (e) {
+            return path.join(WATCH_DIR, 'Problem.md');
+        }
+    }
+    
+    // 打开文件到 VSCode：逐个参数加引号后交给 cmd，不再把文件名拼进一条 shell 命令
+    function openInVSCode(paths) {
+        const list = (paths || []).filter(Boolean);
+        if (!list.length) return;
+        const onErr = () => console.error('[server] 无法调用 VSCode 的 code 命令（可在 VSCode 里执行 Shell Command: Install code command in PATH）');
+        try {
+            const child = process.platform === 'win32'
+                ? spawn(process.env.ComSpec || 'cmd.exe',
+                    ['/d', '/s', '/c', '"' + CODE_CMD + '" ' + list.map(p => '"' + p + '"').join(' ')],
+                    { windowsVerbatimArguments: true, stdio: 'ignore', windowsHide: true })
+                : spawn(CODE_CMD, ['-r'].concat(list), { stdio: 'ignore' });
+            child.on('error', onErr);
+        } catch (e) {
+            // 极端环境下 spawn 可能同步抛异常，不能让它打死整个服务
+            console.error('[server] 调用 code 命令抛出异常（已忽略）：' + (e && e.message));
+        }
+    }
+    
+    // --- 提交前本地语法检查：编不过就不必惊动 OJ ---
+    let compilerPath = null;
+    let compilerChecked = false;
+    function findCompiler() {
+        if (compilerChecked) return compilerPath;
+        compilerChecked = true;
+        const cands = [process.env.HYDRO_COMPILER,
+            'D:/msys2/ucrt64/bin/g++.exe', 'C:/msys64/ucrt64/bin/g++.exe', 'g++', 'clang++'].filter(Boolean);
+        for (const c of cands) {
+            try {
+                // stdio: 'ignore' —— 不建管道，受限环境（沙箱/无管道权限）下也能探测
+                const r = spawnSync(c, ['--version'], { stdio: 'ignore', timeout: 8000, windowsHide: true });
+                if (!r.error && r.status === 0) { compilerPath = c; break; }
+            } catch (e) { /* 换下一个 */ }
+        }
+        console.log(compilerPath ? ('[server] 本地编译器: ' + compilerPath) : '[server] 没找到本地 C++ 编译器，跳过语法预检');
+        return compilerPath;
+    }
+    
+    // null = 没问题或没法检查；字符串 = 编译错误输出
+    function localSyntaxCheck(file) {
+        if (process.env.HYDRO_NO_LOCAL_CHECK) return null;
+        const cc = findCompiler();
+        if (!cc) return null;
+        // 用临时文件接 stderr，而不是管道：管道在受限环境里会 EPERM，文件描述符没问题
+        const tmp = path.join(os.tmpdir(), 'hydro-syntax-' + process.pid + '-' + Date.now() + '.log');
+        let fd = null;
+        try {
+            fd = fs.openSync(tmp, 'w');
+            const r = spawnSync(cc, ['-std=c++17', '-fsyntax-only', file], {
+                stdio: ['ignore', 'ignore', fd], timeout: 30000, windowsHide: true
+            });
+            if (r.error || r.status === 0) return null;
+            let out = '';
+            try { out = fs.readFileSync(tmp, 'utf8').trim(); } catch (e) { out = ''; }
+            return out || ('编译器返回 ' + r.status);
+        } catch (e) {
+            return null;
+        } finally {
+            if (fd !== null) { try { fs.closeSync(fd); } catch (e) {} }
+            try { fs.unlinkSync(tmp); } catch (e) {}
+        }
+    }
+    
+    function replyJson(res, code, obj) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify(obj));
     }
     
     // 静态资源全部内嵌在本文件，用内存返回（篡改猴只认 http(s) 的 .user.js 链接）
@@ -479,28 +607,39 @@ function startServer() {
                 ' | lang=' + (ctx.lang || 'auto') + (ctx.csrf ? ' | csrf=ok' : '') +
                 ' | ' + contexts.size + ' problem(s) cached');
     
-            if (data.markdown && data.markdown !== lastMarkdown) {
-                lastMarkdown = data.markdown;
-                if (syncTimer) clearTimeout(syncTimer);
-                syncTimer = setTimeout(() => writeProblemMarkdown(data.markdown), 400);
+            if (data.markdown) {
+                const mdPath = problemMarkdownPath(ctx);
+                if (mdWritten.get(mdPath) !== data.markdown) {
+                    const old = mdTimers.get(mdPath);
+                    if (old) clearTimeout(old);
+                    mdTimers.set(mdPath, setTimeout(() => {
+                        mdTimers.delete(mdPath);
+                        if (mdWritten.get(mdPath) === data.markdown) return;
+                        mdWritten.set(mdPath, data.markdown);
+                        writeProblemMarkdown(data.markdown, ctx);
+                    }, 400));
+                }
             }
             res.writeHead(200); res.end('ok');
         }).catch(e => { res.writeHead(400); res.end('bad request: ' + e.message); });
     }
     
-    function writeProblemMarkdown(markdown) {
-        const mdPath = path.join(WATCH_DIR, 'Problem.md');
-        try { fs.writeFileSync(mdPath, markdown, 'utf-8'); } catch (e) { console.error('[server] 写入 Problem.md 失败', e.message); return; }
-        const latest = getLatestCpp();
-        const files = latest ? '"' + latest.path + '" "' + mdPath + '"' : '"' + mdPath + '"';
+    // 题面落盘：每题一个文件，同一题的重复抓取只更新它自己
+    function writeProblemMarkdown(markdown, ctx) {
+        const mdPath = problemMarkdownPath(ctx || {});
         try {
-            exec('code -r ' + files, { cwd: WATCH_DIR }, err => {
-                if (err) console.error('[server] 无法调用 VSCode 的 code 命令（可在 VSCode 里执行 Shell Command: Install code command in PATH）：' + err.message);
-            });
+            fs.mkdirSync(path.dirname(mdPath), { recursive: true });
+            fs.writeFileSync(mdPath, markdown, 'utf-8');
         } catch (e) {
-            // exec 在某些环境会同步抛异常（如被沙箱拦住 spawn 时 EPERM），不能让它打死整个服务
-            console.error('[server] 调用 code 命令抛出异常（已忽略，Problem.md 已写入）：' + (e && e.message));
+            console.error('[server] 写入题面失败 ' + mdPath + '：' + e.message);
+            return mdPath;
         }
+        console.log('[server] 题面已写入 ' + mdPath);
+        const pid = ctx && ctx.url ? problemId(ctx.url) : '';
+        const latest = getLatestCpp(pid, (ctx && ctx.title) || '');
+        // 打开“当前这道题的代码 + 它的题面”，而不是永远打开最新改过的那个 cpp
+        openInVSCode(latest ? [latest.path, mdPath] : [mdPath]);
+        return mdPath;
     }
     
     function parseRecordUrl(locationHeader, submitUrl) {
@@ -570,6 +709,18 @@ function startServer() {
         console.log('[server] submit target: ' + submitUrl);
         console.log('[server] file: ' + path.basename(latest.path) + (latest.matchedByProblem ? ' (与题号匹配)' : ' (最新修改)') + ' | lang=' + lang);
     
+        const fileInfo = '📄 文件: ' + path.basename(latest.path) +
+            (latest.matchedByProblem ? '（与题号匹配）' : '（最新修改）') + ' | lang: ' + lang + '\n';
+    
+        // 只对 C++ 做本地语法预检：本地就编不过的代码没必要惊动 OJ
+        if (/^cc\./i.test(lang)) {
+            const ce = localSyntaxCheck(latest.path);
+            if (ce) {
+                reply(400, fileInfo + '❌ 本地语法检查没通过，已取消提交：\n' + ce.slice(0, 2000) + '\n');
+                return;
+            }
+        }
+    
         const formData = new FormData();
         formData.append('lang', lang);
         formData.append('code', latest.code);
@@ -583,7 +734,7 @@ function startServer() {
             'Accept': 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8'
         };
     
-        fetch(submitUrl, { method: 'POST', headers, body: formData, redirect: 'manual' })
+        fetch(submitUrl, { method: 'POST', headers, body: formData, redirect: 'manual', signal: AbortSignal.timeout(20000) })
             .then(async r => {
                 // 302/303 时 Location 就是记录页；也兼容直接渲染 HTML / 返回 JSON 的版本
                 let recordUrl = parseRecordUrl(r.headers.get('location'), submitUrl);
@@ -601,20 +752,23 @@ function startServer() {
                 const startedAt = Date.now();
                 const checkStatus = async (n) => {
                     if (n >= MAX_POLLS) {
-                        reply(200, '⚠️ 还没评测完（已等 ' + Math.round((Date.now() - startedAt) / 1000) + 's），记录页：\n' + recordUrl + '\n');
+                        reply(200, fileInfo + '⚠️ 还没评测完（已等 ' + Math.round((Date.now() - startedAt) / 1000) + 's），记录页：\n' + recordUrl + '\n');
                         return;
                     }
                     try {
-                        const rr = await fetch(recordUrl, { headers: { 'Cookie': ctx.cookie, 'User-Agent': UA, 'Referer': ctx.url } });
+                        const rr = await fetch(recordUrl, {
+                            headers: { 'Cookie': ctx.cookie, 'User-Agent': UA, 'Referer': ctx.url },
+                            signal: AbortSignal.timeout(10000)
+                        });
                         const info = extractStatus(await rr.text());
                         if (!info) {
-                            if (n > 6) { reply(200, '⚠️ 记录页读不到状态（可能需要登录/竞赛未结束），记录页：\n' + recordUrl + '\n'); return; }
+                            if (n > 6) { reply(200, fileInfo + '⚠️ 记录页读不到状态（可能需要登录/竞赛未结束），记录页：\n' + recordUrl + '\n'); return; }
                             setTimeout(() => checkStatus(n + 1), 1000);
                             return;
                         }
                         if ([1, 2, 3, 4, 5, 6, 7].includes(info.status)) {
                             const icon = info.status === 1 ? '✅' : (info.status === 2 ? '❌' : '⚠️');
-                            reply(200, icon + ' ' + info.text + ' | 得分: ' + info.score + ' | 详情: ' + recordUrl + '\n');
+                            reply(200, fileInfo + icon + ' ' + info.text + ' | 得分: ' + info.score + ' | 详情: ' + recordUrl + '\n');
                             return;
                         }
                         if (n % 3 === 0) console.log('[server] judging...');
@@ -625,7 +779,36 @@ function startServer() {
                 };
                 checkStatus(0);
             })
-            .catch(err => reply(500, '❌ 提交出错: ' + err.message + '\n'));
+            .catch(err => {
+                const e = err || {};
+                const timedOut = e.name === 'TimeoutError' || (e.cause && e.cause.name === 'TimeoutError');
+                const cause = (e.cause && (e.cause.code || e.cause.message)) || '';
+                let msg = timedOut ? '请求超时（提交 20s / 轮询 10s），检查网络，或站点是否卡住了' : (e.message || String(e));
+                if (!timedOut && cause) msg += '（' + cause + '）—— 多半是断网、DNS 或站点打不开';
+                reply(500, '❌ 提交出错: ' + msg + '\n');
+            });
+    }
+    
+    // --- GET /api/preview：先看看这次到底会提交哪个文件、什么语言 ---
+    function handlePreview(res) {
+        const ctx = latestContext();
+        if (!ctx) {
+            replyJson(res, 200, { ok: false, error: '还没有任何题目上下文，请先打开 Hydro 题页并点一次「发送到 CPH」' });
+            return;
+        }
+        const pid = problemId(ctx.url);
+        const latest = getLatestCpp(pid, ctx.title);
+        replyJson(res, 200, {
+            ok: true,
+            url: ctx.url,
+            title: ctx.title || '',
+            pid: pid || '',
+            file: latest ? latest.path : '',
+            fileName: latest ? path.basename(latest.path) : '',
+            matchedByProblem: latest ? !!latest.matchedByProblem : false,
+            lang: pickLang(ctx.langs, ctx.lang),
+            mdPath: problemMarkdownPath(ctx)
+        });
     }
     
     // --- /api/ping：篡改猴脚本启动时打个心跳，确认脚本在某个站点到底有没有跑起来 ---
@@ -660,9 +843,20 @@ function startServer() {
         if (req.method === 'POST' && req.url.split('?')[0] === '/api/submit') { handleSubmit(req, res); return; }
         if (req.method === 'POST' && req.url.split('?')[0] === '/api/ping') { handlePing(req, res); return; }
         if (req.method === 'GET' && req.url.split('?')[0] === '/api/ping') { handlePingStatus(req, res); return; }
+        if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/api/preview') { handlePreview(res); return; }
     
         res.writeHead(404);
         res.end('Not found');
+    });
+    
+    server.on('error', e => {
+        if (e && e.code === 'EADDRINUSE') {
+            console.log('[server] 端口 ' + PORT + ' 已被占用：多半是已经有一个 Hydro 助手在跑了。');
+            console.log('[server] 想确认是谁占的：netstat -ano | findstr :' + PORT);
+            process.exit(0);
+        }
+        console.error('[server] 本地服务出错：' + (e && e.message ? e.message : e));
+        process.exit(1);
     });
     
     server.listen(PORT, HOST, () => {

@@ -1,7 +1,7 @@
 # 交接文档 · Hydro-AtCoder-GodMode
 
 > 面向下一个接手的人（或下一个会话的 AI）。读完这份就能改代码、能排障。
-> 生成时间对应提交 `3efc530`（v8.5），仓库 `app.js` 92064 B / 676 行。
+> 上一轮交接对应提交 `3efc530`（v8.5）。本轮（题面按题落盘、提交前本地预检、`/api/preview`、端口占用提示）之后，仓库 `app.js` 是 103352 B / 875 行，提交号见 `git log -1`。
 
 ## 1. 它是什么
 
@@ -9,9 +9,9 @@
 
 三个组件：
 
-- **本地服务**（Node，`http://localhost:27122`）：接收浏览器发来的题面/样例/Cookie，管理「当前题目上下文」，代你 POST 到 OJ 并轮询判题结果。
+- **本地服务**（Node，`http://localhost:27122`）：接收浏览器发来的题面/样例/Cookie，管理「当前题目上下文」，代你 POST 到 OJ 并轮询判题结果。题面按题落盘到工作区 `Problems/<站点>/<题号>-<标题>.md`（不同题互不覆盖，同题重复抓取只覆盖自己），提交前先用本地 `g++ -fsyntax-only` 预检，预检不过直接判 CE、不发网络请求。
 - **浏览器脚本**（篡改猴 userscript，`Hydro 通用全能助手` v8.5）：识别 Hydro 题页，右下角浮出「发送到 CPH」按钮，把题面转 Markdown、样例抓下来、连同 Cookie/语言发到本地服务。同时装 AtCoder 版脚本 `AtCoder-Plus-CPH.user.js`。
-- **VS Code 任务/键位**：`Alt+Enter` = `submit code to OJ`（curl 打 `/api/submit`）；`start server`（`runOn: folderOpen`）打开文件夹时自动起服务；`open problem` 用 `code -r Problem.md` 打开题面；`g++` 编译。
+- **VS Code 任务/键位**：`Alt+Enter` = `submit code to OJ`，它是一条 `dependsOn` **复合任务**——先 `preview submit target`（`curl GET /api/preview`，`--max-time 3`，服务没起会立刻暴露），再 `submit code to OJ (post)`（`curl POST /api/submit`，`--max-time 60`）。另有 `start server`（`runOn: folderOpen`，开文件夹自动起服务）、`open problem`（`code -r` 打开题面）、`g++` 编译。
 
 ## 2. 两个目录（重要：不要搞反）
 
@@ -25,7 +25,7 @@
 仓库里**只有 4 个文件**（刻意的，别再往仓库塞 README/截图/配置）：
 
 ```
-app.js        92807 B  ← 由 Hydro-AtCoder-GodMode-src 构建生成，不要手改
+app.js       103352 B  ← 由 Hydro-AtCoder-GodMode-src 构建生成，不要手改
 install.bat   181 B    ← 安装器入口
 start.bat     190 B    ← 启动服务入口
 HANDOVER.md   这份交接文档（唯一允许的文档）
@@ -53,14 +53,20 @@ HANDOVER.md   这份交接文档（唯一允许的文档）
 | --- | --- |
 | 18 | `const ASSETS = { ... }` 静态资源表：`install.html`、`tampermonkey/Hydro-Helper.user.js`、`tampermonkey/AtCoder-Plus-CPH.user.js`、`hydro-console.js`、`tm-test.user.js` |
 | 26 | `const VSCODE_FILES = { tasks.json, keybindings.json }` |
-| 31/32 | `ENTRY_KEY='alt+enter'`、`ENTRY_TASK='submit code to OJ'` |
-| 122 | `setupWorkspace(ws)`：写 `.vscode/tasks.json`（调用 `tasksJson(ws)`）、`keybindings.json`；**已有 tasks.json 时保留不覆盖**（日志「保留已有」） |
-| 255 | `installRuntime()`：复制 app.js/settings.json/start.bat/uninstall.bat 到 `%LOCALAPPDATA%\HydroGodMode` |
-| 301 | `installerMain()` |
-| 354 | `workspaceDir()` |
-| 363 | `startServer()`（`MAX_POLLS = 25`，绑 `127.0.0.1`，`contexts = new Map()` 按 URL 存上下文，TTL 30 min） |
-| 460 | `/api/sync` 处理（`handleSync`） |
-| 523 | `/api/submit` 处理（`handleSubmit`，`redirect:'manual'` 取 Location 再解析 body 里的 rid） |
+| 33/34 | `ENTRY_KEY='alt+enter'`、`ENTRY_TASK='submit code to OJ'` |
+| 88 | `tasksJson(ws)`：默认任务表（g++ / preview submit target / submit code to OJ (post) / submit code to OJ / start server / open problem） |
+| 136 | `mergeTasks(dst, wantJson)`：**已有 tasks.json 时按 label 差集补缺失任务**，用户改过的同名任务不动 |
+| 153 | `setupWorkspace(ws)`：写 `.vscode/tasks.json`（已存在走 `mergeTasks`）、`keybindings.json`（已存在保留） |
+| 289 | `installRuntime()`：复制 app.js/settings.json/start.bat/uninstall.bat 到 `%LOCALAPPDATA%\HydroGodMode` |
+| 335 | `installerMain()` |
+| 388 | `workspaceDir()` |
+| 397 | `startServer()`（`MAX_POLLS = 25`，绑 `127.0.0.1`，`contexts = new Map()` 按 URL 存上下文，TTL 30 min；`server.on('error')` 处理端口占用） |
+| 473 | `problemMarkdownPath(ctx)`：`Problems/<host>/<pid>-<slug>.md`，拿不到题号退回 `Problem.md` |
+| 489 | `openInVSCode(paths)`：`spawn` 逐参数传参（Windows 走 `cmd /c "code" "a.cpp" "b.md"`），不再把文件名拼进一条 shell 命令 |
+| 526 | `localSyntaxCheck(file)`：`g++ -std=c++17 -fsyntax-only`，stderr 写临时文件（不建管道） |
+| 588 | `/api/sync` 处理（`handleSync`；题面写入按各自 mdPath 做 400ms debounce + 内容去重，多标签不互相打断） |
+| 667 | `/api/submit` 处理（`handleSubmit`，`redirect:'manual'` 取 Location 再解析 body 里的 rid；请求带 20s / 10s 超时） |
+| 793 | `GET /api/preview`（`handlePreview`）：只回答「这次会提交哪个文件、什么语言」 |
 
 ## 5. 改代码的标准流程（⚠️ 别直接改仓库的 app.js）
 
@@ -77,16 +83,17 @@ git push
 git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 ```
 
-`build.js` 干的事（139 行）：读 `Hydro-AtCoder-GodMode-src` 下源码 → 切出 installer 主体（从注释 `// Hydro-AtCoder-GodMode 唯一安装器` 到 `main().catch(e =>`）→ 处理 `PICKER_PS` 常量 → 把 `setupWorkspace` 里的 `fs.copyFileSync(...)` 改写成 `fs.writeFileSync(dst, f === 'tasks.json' ? tasksJson(ws) : VSCODE_FILES[f], 'utf8')` → 切出 `server.js` 的服务主体、把 `WATCH_DIR = __dirname` 换成 `workspaceDir()`、用内嵌 `serveAsset` 替换静态文件服务 → 生成 `ASSETS`/`VSCODE_FILES` 常量 → 加 tail（`workspaceDir`、`startServer`、`--serve` 分发）→ 写 `Hydro-AtCoder-GodMode-src/app.js`。
+`build.js` 干的事（139 行）：读 `Hydro-AtCoder-GodMode-src` 下源码 → 切出 installer 主体（从注释 `// Hydro-AtCoder-GodMode 唯一安装器` 到 `main().catch(e =>`）→ 处理 `PICKER_PS` 常量 → 把 `setupWorkspace` 里的 `fs.copyFileSync(...)` 改写成 `fs.writeFileSync(dst, f === 'tasks.json' ? tasksJson(ws) : VSCODE_FILES[f], 'utf8')` → 切出 `server.js` 的服务主体、把 `WATCH_DIR = __dirname` 换成 `workspaceDir()`、用内嵌 `serveAsset` 替换静态文件服务（**不再改写 `exec('code -r' …)`**：server.js 已改用 `spawn` 逐参数传参，build.js 里那条替换已删掉）→ 生成 `ASSETS`/`VSCODE_FILES` 常量 → 加 tail（`workspaceDir`、`startServer`、`--serve` 分发）→ 写 `Hydro-AtCoder-GodMode-src/app.js`。
 
-源码文件清单：`installer.js`(329) `server.js`(326) `install.html`(18884 B) `hydro-console.js`(2922 B) `tm-test.user.js`(963 B) `tampermonkey/Hydro-Helper.user.js`(531 行/24327 B) `tampermonkey/AtCoder-Plus-CPH.user.js`(4689 B) `vscode-config/{tasks,keybindings}.json` `build.js`(139) `deploy.ps1`。
+源码文件清单：`installer.js`(363) `server.js`(492) `install.html`(18884 B) `hydro-console.js`(2922 B) `tm-test.user.js`(963 B) `tampermonkey/Hydro-Helper.user.js`(531 行/24327 B) `tampermonkey/AtCoder-Plus-CPH.user.js`(4689 B) `vscode-config/{tasks,keybindings}.json` `build.js`(139) `deploy.ps1`。
 
 ## 6. HTTP API
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/api/sync` | 浏览器脚本上报：cookie、url、markdown（题面）、samples、lang/langlist、csrf。写出工作区 `Problem.md` |
-| POST | `/api/submit` | 提交当前上下文到 OJ 并轮询判题（`MAX_POLLS=25`，约 25 秒）；返回中文状态 |
+| POST | `/api/sync` | 浏览器脚本上报：cookie、url、markdown（题面）、samples、lang/langlist、csrf。题面写入 `Problems/<站点>/<题号>-<标题>.md`（无题号时退回 `Problem.md`） |
+| POST | `/api/submit` | 提交当前上下文到 OJ 并轮询判题（`MAX_POLLS=25`，约 25 秒）；返回中文状态，首行固定 `📄 文件: xxx.cpp（与题号匹配/最新修改） | lang: …`；`cc.*` 语言先跑本地语法预检 |
+| GET | `/api/preview` | 返回 `{ok,url,title,pid,file,fileName,matchedByProblem,lang,mdPath}`；只看不提交，无上下文时 `ok:false`（仍 200） |
 | POST | `/api/ping` | userscript 心跳（body: url/title/host/version） |
 | GET | `/api/ping` | 返回 `{ok, now, ping}`，安装页 3 秒轮询一次显示「脚本到底跑没跑」 |
 | GET | `/install.html` | 安装引导页（方式 A 一键安装 / 方式 B 复制粘贴 / 方式 C 控制台保底 / 心跳面板） |
@@ -94,6 +101,16 @@ git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 | GET | `/hydro-console.js` | 控制台版加载器（不需要篡改猴） |
 
 所有 API 路由用 `req.url.split('?')[0]` 匹配（带查询串不 404）；CORS 开 `*` + `GET,POST,HEAD,OPTIONS`；只绑 `127.0.0.1`。
+
+服务端环境变量：
+
+| 变量 | 作用 |
+| --- | --- |
+| `PORT` | 监听端口，默认 `27122` |
+| `HYDRO_WORKSPACE` | 覆盖工作区（`.cpp` 扫描目录 + 题面落盘目录） |
+| `HYDRO_CODE_CMD` | 打开文件用的命令，默认 `code`（测试时设 `echo`） |
+| `HYDRO_COMPILER` | 指定本地编译器，默认依次试 `D:/msys2/ucrt64/bin/g++.exe`、`C:/msys64/ucrt64/bin/g++.exe`、`g++`、`clang++` |
+| `HYDRO_NO_LOCAL_CHECK` | 设成任意值即关闭提交前的本地语法预检 |
 
 ## 7. 排障手册（真实踩过的坑）
 
@@ -120,6 +137,9 @@ git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 - **PowerShell 里 `git commit -m` 带中文全角引号会被拆词**报 `pathspec ... did not match any file(s)` → 提交信息用纯 ASCII；`git push` 输出走 stderr，在 `$ErrorActionPreference='Stop'` 下会抛 NativeCommandError 但**推送已成功**，用 `git rev-parse` 比对确认。
 - **run_code 的 TS 模板字符串里不能出现反引号**（PowerShell 的 `` `r`n `` 会直接语法报错），PS 里改用 `[char]10` 或数组 join。
 - **`tools.edit` 要求目标文件本会话内被 `tools.read` 读过**，否则报 `file has not been read`。
+- **受限环境里 `spawnSync` 不能建管道**（沙箱收紧时直接 `EPERM`）→ 探测编译器用 `stdio:'ignore'`，g++ 的报错写临时文件再 `fs.readFileSync` 读，别指望 `encoding:'utf8'` 的管道捕获。
+- **老工作区拿不到新任务**：以前 `setupWorkspace` 见到 `tasks.json` 就跳过，现在按 label 合并；还不行就删掉 `.vscode/tasks.json` 重跑安装器。
+- **`Problem.md` 只是旧版单文件兜底**：拿不到题号才写它，找题面去 `Problems/<host>/` 按题号看。
 
 ## 8. 已完成的决策记录（为什么是现在这样）
 
@@ -132,11 +152,13 @@ git rev-parse HEAD; git rev-parse origin/main   # 必须一致
 
 ## 9. 已知限制 / 待办
 
-1. **`setupWorkspace` 只在 `.vscode/tasks.json` 不存在时才写**：老工程要手动补 `start server` / `open problem` 任务，或先删掉 tasks.json 再跑安装器。
-2. **tasks.json 里的 app.js 路径硬编码**，仓库换位置就失效（改成 `%LOCALAPPDATA%` 版更稳，未做）。
-3. 篡改猴用户可以靠 `@updateURL`（指向 `localhost:27122`）自动更新脚本，但**服务没起时不会更新**；也可以从安装页手动重装。
-4. 控制台方式每次刷新要重新粘贴（可用书签小工具缓解，未做）。
-5. 只做了 Windows（依赖 `powershell.exe`、`%LOCALAPPDATA%`、`.bat`）。
+1. **老工作区的 tasks.json 只补「缺失的 label」**：用户改过的同名任务不会被更新；要强制刷新就删掉 `.vscode/tasks.json` 重跑安装器。
+2. **本地语法预检要求本机有 g++**：找不到就静默跳过（日志一行提醒），此时 CE 只能等 OJ 判。
+3. **tasks.json 里的 app.js 路径硬编码**，仓库换位置就失效（改成 `%LOCALAPPDATA%` 版更稳，未做）。
+4. 篡改猴用户可以靠 `@updateURL`（指向 `localhost:27122`）自动更新脚本，但**服务没起时不会更新**；也可以从安装页手动重装。
+5. 控制台方式每次刷新要重新粘贴（可用书签小工具缓解，未做）。
+6. 只做了 Windows（依赖 `powershell.exe`、`%LOCALAPPDATA%`、`.bat`）。
+7. `Problems/` 只增不清理：每题一个 `.md`，同题只覆盖自己，不会自动删旧题。
 
 ## 10. 常用命令速查
 
