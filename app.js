@@ -498,9 +498,12 @@ function startServer() {
         if (!list.length) return;
         const onErr = () => console.error('[server] 无法调用 VSCode 的 code 命令（可在 VSCode 里执行 Shell Command: Install code command in PATH）');
         try {
+            // cmd /s /c 会把「以引号开头」的整串首尾引号各剥掉一个，所以命令必须再包一层引号，
+            // 变成 cmd /c ""code.exe" "文件1" "文件2"" —— 少这层包绕时 cmd 直接报错退出，文件就弹不出来。
+            const winCmd = '"' + CODE_CMD + '" ' + list.map(p => '"' + p + '"').join(' ');
             const child = process.platform === 'win32'
                 ? spawn(process.env.ComSpec || 'cmd.exe',
-                    ['/d', '/s', '/c', '"' + CODE_CMD + '" ' + list.map(p => '"' + p + '"').join(' ')],
+                    ['/d', '/s', '/c', '"' + winCmd + '"'],
                     { windowsVerbatimArguments: true, stdio: 'ignore', windowsHide: true })
                 : spawn(CODE_CMD, ['-r'].concat(list), { stdio: 'ignore' });
             child.on('error', onErr);

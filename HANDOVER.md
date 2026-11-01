@@ -61,12 +61,12 @@ HANDOVER.md   这份交接文档（唯一允许的文档）
 | 335 | `installerMain()` |
 | 388 | `workspaceDir()` |
 | 397 | `startServer()`（`MAX_POLLS = 25`，绑 `127.0.0.1`，`contexts = new Map()` 按 URL 存上下文，TTL 30 min；`server.on('error')` 处理端口占用） |
-| 473 | `problemMarkdownPath(ctx)`：`Problems/<host>/<标题>.md`（标题直接删掉 Windows 非法字符 `/ \ : * ? " < > |` 与控制字符，不再替换成 `_`；空格、中文、标点原样保留，首尾点和空格去掉；取不到标题退回题号 `<pid>.md`；连题号都没有才用旧 `Problem.md`） |
-| 489 | `openInVSCode(paths)`：`spawn` 逐参数传参（Windows 走 `cmd /c "code" "a.cpp" "b.md"`），不再把文件名拼进一条 shell 命令 |
-| 526 | `localSyntaxCheck(file)`：`g++ -std=c++17 -fsyntax-only`，stderr 写临时文件（不建管道） |
-| 588 | `/api/sync` 处理（`handleSync`；题面写入按各自 mdPath 做 400ms debounce + 内容去重，多标签不互相打断） |
-| 667 | `/api/submit` 处理（`handleSubmit`，`redirect:'manual'` 取 Location 再解析 body 里的 rid；请求带 20s / 10s 超时） |
-| 793 | `GET /api/preview`（`handlePreview`）：只回答「这次会提交哪个文件、什么语言」 |
+| 481 | `problemMarkdownPath(ctx)`：`Problems/<host>/<标题>.md`（标题直接删掉 Windows 非法字符 `/ \ : * ? " < > |` 与控制字符，不再替换成 `_`；空格、中文、标点原样保留，首尾点和空格去掉；取不到标题退回题号 `<pid>.md`；连题号都没有才用旧 `Problem.md`） |
+| 496 | `openInVSCode(paths)`：`spawn` 逐参数传参（Windows 走 `cmd /c "code" "a.cpp" "b.md"`），不再把文件名拼进一条 shell 命令 |
+| 536 | `localSyntaxCheck(file)`：`g++ -std=c++17 -fsyntax-only`，stderr 写临时文件（不建管道） |
+| 598 | `/api/sync` 处理（`handleSync`；题面写入按各自 mdPath 做 400ms debounce + 内容去重，多标签不互相打断） |
+| 677 | `/api/submit` 处理（`handleSubmit`，`redirect:'manual'` 取 Location 再解析 body 里的 rid；请求带 20s / 10s 超时） |
+| 803 | `GET /api/preview`（`handlePreview`）：只回答「这次会提交哪个文件、什么语言」 |
 
 ## 5. 改代码的标准流程（⚠️ 别直接改仓库的 app.js）
 
