@@ -41,7 +41,7 @@ HANDOVER.md   这份交接文档（唯一允许的文档）
 
 安装器可选参数（会跳过对应步骤，调试用）：`--no-keybind` `--no-browser` `--no-runtime`；也可直接传工作区目录作为第一个位置参数。
 
-运行时目录：`%LOCALAPPDATA%\HydroGodMode`（内含 `app.js`、`settings.json`、`start.bat`、`uninstall.bat`）。工作区解析顺序（`app.js` 的 `workspaceDir()`）：`HYDRO_WORKSPACE` 环境变量 → `settings.json` 里的 `workspace`（需真实存在）→ 运行时目录兜底。
+运行时目录：`%LOCALAPPDATA%\HydroGodMode`（内含 `app.js`、`settings.json`、`start.bat`、`uninstall.bat`）。工作区解析顺序（`app.js` 的 `workspaceDir()`）：`HYDRO_WORKSPACE` 环境变量 → 本目录 `settings.json` 的 `workspace` → `%LOCALAPPDATA%\HydroGodMode\settings.json` 的 `workspace`（需真实存在）→ 本文件所在目录兜底。这样即使直接从仓库目录跑 `start.bat`，也会用上安装时选的工作区。
 
 ## 4. `app.js` 内部结构（单文件合并的代价/收益）
 

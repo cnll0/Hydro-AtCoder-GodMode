@@ -384,13 +384,21 @@ async function installerMain() {
 }
 
 
-// 工作区：环境变量 > 安装时写下的 settings.json > 本文件所在目录
+// 工作区：环境变量 > 本目录 settings.json > 安装目录 settings.json > 本文件所在目录
+// 后两项是为了让「直接从仓库跑 start.bat」也能用上安装时记下的工作区
 function workspaceDir() {
     if (process.env.HYDRO_WORKSPACE) return process.env.HYDRO_WORKSPACE;
-    try {
-        const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'settings.json'), 'utf8'));
-        if (cfg.workspace && fs.existsSync(cfg.workspace)) return cfg.workspace;
-    } catch (e) { /* 没有配置文件就用默认 */ }
+    const localApp = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || '~', 'AppData', 'Local');
+    const candidates = [
+        path.join(ROOT, 'settings.json'),
+        path.join(localApp, 'HydroGodMode', 'settings.json'),
+    ];
+    for (const cfgPath of candidates) {
+        try {
+            const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+            if (cfg.workspace && fs.existsSync(cfg.workspace)) return cfg.workspace;
+        } catch (e) { /* 这个位置没有可用的配置文件就试下一个 */ }
+    }
     return ROOT;
 }
 
