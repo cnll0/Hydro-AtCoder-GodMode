@@ -466,7 +466,14 @@ function startServer() {
     }
     
     function slugOf(title) {
-        return String(title || '').replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60);
+        // 标题原样做文件名：只把 Windows 不允许的字符 / \ : * ? " < > | 和控制字符直接删掉，
+        // 空格、中文、标点都保留（不再用 _ 替换）；末尾的点和空格 Windows 会吃掉，一并去掉。
+        return String(title || '')
+            .replace(/[\\/:*?"<>|]/g, '')
+            .replace(/[\u0000-\u001f]+/g, ' ')
+            .replace(/[.\s]+$/, '')
+            .replace(/^[.\s]+/, '')
+            .slice(0, 80);
     }
     
     // 路径：Problems/<站点>/<标题>.md —— 文件名用题目标题，不带题号；

@@ -9,7 +9,7 @@
 
 三个组件：
 
-- **本地服务**（Node，`http://localhost:27122`）：接收浏览器发来的题面/样例/Cookie，管理「当前题目上下文」，代你 POST 到 OJ 并轮询判题结果。题面按题落盘到工作区 `Problems/<站点>/<标题>.md`（文件名只用题目标题、不带题号；不同题互不覆盖，同题重复抓取只覆盖自己），提交前先用本地 `g++ -fsyntax-only` 预检，预检不过直接判 CE、不发网络请求。
+- **本地服务**（Node，`http://localhost:27122`）：接收浏览器发来的题面/样例/Cookie，管理「当前题目上下文」，代你 POST 到 OJ 并轮询判题结果。题面按题落盘到工作区 `Problems/<站点>/<标题>.md`（文件名只用题目标题、不带题号，标题里的非法字符直接删掉而不替换；不同题互不覆盖，同题重复抓取只覆盖自己），提交前先用本地 `g++ -fsyntax-only` 预检，预检不过直接判 CE、不发网络请求。
 - **浏览器脚本**（篡改猴 userscript，`Hydro 通用全能助手` v8.5）：识别 Hydro 题页，右下角浮出「发送到 CPH」按钮，把题面转 Markdown、样例抓下来、连同 Cookie/语言发到本地服务。同时装 AtCoder 版脚本 `AtCoder-Plus-CPH.user.js`。
 - **VS Code 任务/键位**：`Alt+Enter` = `submit code to OJ`，它是一条 `dependsOn` **复合任务**——先 `preview submit target`（`curl GET /api/preview`，`--max-time 3`，服务没起会立刻暴露），再 `submit code to OJ (post)`（`curl POST /api/submit`，`--max-time 60`）。另有 `start server`（`runOn: folderOpen`，开文件夹自动起服务）、`open problem`（`code -r` 打开题面）、`g++` 编译。
 
@@ -61,7 +61,7 @@ HANDOVER.md   这份交接文档（唯一允许的文档）
 | 335 | `installerMain()` |
 | 388 | `workspaceDir()` |
 | 397 | `startServer()`（`MAX_POLLS = 25`，绑 `127.0.0.1`，`contexts = new Map()` 按 URL 存上下文，TTL 30 min；`server.on('error')` 处理端口占用） |
-| 473 | `problemMarkdownPath(ctx)`：`Problems/<host>/<标题>.md`（标题清洗非法字符；取不到标题退回题号 `<pid>.md`；连题号都没有才用旧 `Problem.md`） |
+| 473 | `problemMarkdownPath(ctx)`：`Problems/<host>/<标题>.md`（标题直接删掉 Windows 非法字符 `/ \ : * ? " < > |` 与控制字符，不再替换成 `_`；空格、中文、标点原样保留，首尾点和空格去掉；取不到标题退回题号 `<pid>.md`；连题号都没有才用旧 `Problem.md`） |
 | 489 | `openInVSCode(paths)`：`spawn` 逐参数传参（Windows 走 `cmd /c "code" "a.cpp" "b.md"`），不再把文件名拼进一条 shell 命令 |
 | 526 | `localSyntaxCheck(file)`：`g++ -std=c++17 -fsyntax-only`，stderr 写临时文件（不建管道） |
 | 588 | `/api/sync` 处理（`handleSync`；题面写入按各自 mdPath 做 400ms debounce + 内容去重，多标签不互相打断） |
